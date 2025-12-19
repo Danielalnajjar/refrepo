@@ -12,6 +12,7 @@ import {
 } from '../../core/manifest.js';
 import { cloneRepo, pullRepo, isGitRepo } from '../../core/git.js';
 import { resolveRoot } from '../../core/config.js';
+import { createLogger, printJson, type Logger } from '../output.js';
 import type { CommandResult, RepoConfig } from '../../core/types.js';
 
 interface SyncOptions {
@@ -49,15 +50,21 @@ export function createSyncCommand(): Command {
     .option('--concurrency <n>', 'Number of concurrent operations', '4')
     .option('--depth <n>', 'Clone depth (use 1 for shallow)', '1')
     .action(async (options: SyncOptions) => {
-      const result = await runSync(options);
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+      const result = await runSync(options, logger);
+
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success && result.data) {
         printSyncResult(result.data);
       } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 }
@@ -112,14 +119,15 @@ function printSyncResult(data: SyncResult): void {
 async function syncRepo(
   repoConfig: RepoConfig,
   root: string,
-  depth: number
+  depth: number,
+  logger: Logger
 ): Promise<RepoSyncResult> {
   const repoPath = getRepoPath(root, repoConfig.localDir);
   const exists = fs.existsSync(repoPath);
 
   if (!exists) {
     // Clone the repo
-    console.log(chalk.dim(`  Cloning ${repoConfig.name}...`));
+    logger.dim(`  Cloning ${repoConfig.name}...`);
 
     const cloneOptions: { depth?: number; branch?: string } = {
       branch: repoConfig.branch,
@@ -154,7 +162,7 @@ async function syncRepo(
   }
 
   // Pull updates
-  console.log(chalk.dim(`  Pulling ${repoConfig.name}...`));
+  logger.dim(`  Pulling ${repoConfig.name}...`);
   const result = await pullRepo(repoPath, { ffOnly: true });
 
   if (result.success) {
@@ -174,7 +182,7 @@ async function syncRepo(
   }
 }
 
-async function runSync(options: SyncOptions): Promise<CommandResult<SyncResult>> {
+async function runSync(options: SyncOptions, logger: Logger): Promise<CommandResult<SyncResult>> {
   // Load manifest
   const manifestResult = safeLoadManifest();
   if (!manifestResult.success || !manifestResult.data) {
@@ -194,9 +202,9 @@ async function runSync(options: SyncOptions): Promise<CommandResult<SyncResult>>
     fs.mkdirSync(root, { recursive: true });
   }
 
-  console.log(chalk.bold('Syncing Reference Repos'));
-  console.log(chalk.dim('Root: ' + root));
-  console.log('');
+  logger.info(chalk.bold('Syncing Reference Repos'));
+  logger.dim('Root: ' + root);
+  logger.log('');
 
   // Get enabled repos
   const enabledRepos = getEnabledRepos(manifest);
@@ -211,7 +219,7 @@ async function runSync(options: SyncOptions): Promise<CommandResult<SyncResult>>
 
   for (const chunk of chunks) {
     const chunkResults = await Promise.all(
-      chunk.map((repo) => syncRepo(repo, root, depth))
+      chunk.map((repo) => syncRepo(repo, root, depth, logger))
     );
     results.push(...chunkResults);
   }
@@ -224,8 +232,6 @@ async function runSync(options: SyncOptions): Promise<CommandResult<SyncResult>>
     skipped: results.filter((r) => r.action === 'skipped').length,
     failed: results.filter((r) => r.action === 'failed').length,
   };
-
-  console.log(''); // Clear line after progress
 
   return {
     success: true,

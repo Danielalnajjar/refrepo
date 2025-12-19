@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { computePlan, formatBytes, type PlanSummary, type RepoPlanResult } from '../../core/plan.js';
+import { createLogger, printJson } from '../output.js';
 import type { CommandResult, WarningLevel } from '../../core/types.js';
 
 interface PlanOptions {
@@ -19,15 +20,21 @@ export function createPlanCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--repo <id>', 'Plan single repo')
     .action(async (options: PlanOptions) => {
-      const result = await runPlan(options);
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+      const result = await runPlan(options, logger);
+
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success && result.data) {
-        printPlanResult(result.data, options);
+        printPlanResult(result.data);
       } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 }
@@ -79,7 +86,7 @@ function printRepoPlan(repo: RepoPlanResult): void {
   }
 }
 
-function printPlanResult(data: PlanSummary, options: PlanOptions): void {
+function printPlanResult(data: PlanSummary): void {
   console.log(chalk.bold('Index Plan'));
   console.log('');
 
@@ -118,7 +125,10 @@ function printPlanResult(data: PlanSummary, options: PlanOptions): void {
   }
 }
 
-async function runPlan(options: PlanOptions): Promise<CommandResult<PlanSummary>> {
+async function runPlan(
+  options: PlanOptions,
+  logger: ReturnType<typeof createLogger>
+): Promise<CommandResult<PlanSummary>> {
   // Load manifest
   const manifestResult = safeLoadManifest();
   if (!manifestResult.success || !manifestResult.data) {
@@ -129,8 +139,8 @@ async function runPlan(options: PlanOptions): Promise<CommandResult<PlanSummary>
   }
 
   try {
-    console.log(chalk.dim('Computing index plan...'));
-    console.log('');
+    logger.dim('Computing index plan...');
+    logger.log('');
 
     const summary = computePlan(manifestResult.data, {
       repoId: options.repo,

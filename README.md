@@ -103,11 +103,49 @@ refrepo includes comprehensive ignore rules for:
 
 Repo-specific exclusions filter out non-React framework code from TanStack packages.
 
+## JSON Mode
+
+All commands support `--json` for automation-friendly output:
+
+```bash
+# Stdout contains only valid JSON; logs go to stderr
+refrepo plan --json | jq .success
+refrepo sync --json | jq .data.summary
+refrepo index --dry-run --json | jq .data.filesUploaded
+```
+
+**Note**: In JSON mode, stdout contains only the JSON result. All progress logs are redirected to stderr.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `MXBAI_API_KEY` | Mixedbread API key for mgrep (required for indexing) |
+| `MIXEDBREAD_API_KEY` | Legacy name (deprecated, still accepted) |
+| `REFREPO_ROOT` | Override default repository root |
+| `REFREPO_STORE` | Override default mgrep store name |
+
 ## Requirements
 
 - Node.js 18+
 - [mgrep](https://github.com/mixedbread-ai/mgrep) for semantic search
 - Git
+- Works on Linux, macOS, and Windows
+
+## Verification
+
+After installation, verify the setup:
+
+```bash
+# Check dependencies
+refrepo doctor
+
+# Verify JSON output is clean (should output: true)
+refrepo plan --json 2>/dev/null | jq -e .success
+
+# Run tests
+pnpm test
+```
 
 ## License
 

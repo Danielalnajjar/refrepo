@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { computePlan, formatBytes } from '../../core/plan.js';
+import { createLogger, printJson, type Logger } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
 
 interface IndexOptions {
@@ -38,20 +39,29 @@ export function createIndexCommand(): Command {
     .option('--timeout-seconds <n>', 'Kill mgrep after N seconds', '300')
     .option('--repo <id>', 'Index single repo')
     .action(async (options: IndexOptions) => {
-      const result = await runIndex(options);
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
-      } else if (result.success) {
-        // Success message already printed by runIndex
-      } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+      const result = await runIndex(options, logger, jsonMode);
+
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
+      } else if (!result.success) {
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
+      // Success message already printed by runIndex in non-JSON mode
     });
 }
 
-async function runIndex(options: IndexOptions): Promise<CommandResult<IndexResult>> {
+async function runIndex(
+  options: IndexOptions,
+  logger: Logger,
+  jsonMode: boolean
+): Promise<CommandResult<IndexResult>> {
   // Load manifest
   const manifestResult = safeLoadManifest();
   if (!manifestResult.success || !manifestResult.data) {
@@ -67,20 +77,20 @@ async function runIndex(options: IndexOptions): Promise<CommandResult<IndexResul
 
   // Step 1: Run plan check (unless --force)
   if (!options.force) {
-    console.log(chalk.dim('Checking index plan...'));
+    logger.dim('Checking index plan...');
 
     try {
       const plan = computePlan(manifest, { repoId: options.repo });
 
       if (plan.overallWarningLevel === 'red') {
-        console.log('');
-        console.log(chalk.red('✖ Index blocked - plan exceeds error thresholds'));
-        console.log('');
-        console.log(`  Files: ${plan.totals.includedFileCount.toLocaleString()}`);
-        console.log(`  Size:  ${formatBytes(plan.totals.includedTotalBytes)}`);
-        console.log('');
-        console.log(chalk.dim('  Run `refrepo plan` to see details'));
-        console.log(chalk.dim('  Use `refrepo index --force` to override'));
+        logger.log('');
+        logger.error('✖ Index blocked - plan exceeds error thresholds');
+        logger.log('');
+        logger.log(`  Files: ${plan.totals.includedFileCount.toLocaleString()}`);
+        logger.log(`  Size:  ${formatBytes(plan.totals.includedTotalBytes)}`);
+        logger.log('');
+        logger.dim('  Run `refrepo plan` to see details');
+        logger.dim('  Use `refrepo index --force` to override');
         return {
           success: false,
           error: 'Index blocked due to RED warning level. Use --force to override.',
@@ -88,16 +98,16 @@ async function runIndex(options: IndexOptions): Promise<CommandResult<IndexResul
       }
 
       if (plan.overallWarningLevel === 'yellow') {
-        console.log(chalk.yellow('⚠ Warning: plan exceeds warning thresholds'));
-        console.log(chalk.dim('  Proceeding anyway...'));
-        console.log('');
+        logger.warn('⚠ Warning: plan exceeds warning thresholds');
+        logger.dim('  Proceeding anyway...');
+        logger.log('');
       } else {
-        console.log(chalk.green('✓ Plan check passed'));
-        console.log('');
+        logger.success('✓ Plan check passed');
+        logger.log('');
       }
-    } catch (error) {
-      console.log(chalk.yellow('⚠ Could not compute plan, proceeding anyway'));
-      console.log('');
+    } catch {
+      logger.warn('⚠ Could not compute plan, proceeding anyway');
+      logger.log('');
     }
   }
 
@@ -105,11 +115,11 @@ async function runIndex(options: IndexOptions): Promise<CommandResult<IndexResul
   const startTime = Date.now();
   const timeoutMs = (options.timeoutSeconds || 300) * 1000;
 
-  console.log(chalk.dim(`Indexing with mgrep (store: ${store})...`));
+  logger.dim(`Indexing with mgrep (store: ${store})...`);
   if (options.dryRun) {
-    console.log(chalk.dim('(dry-run mode - no files will be uploaded)'));
+    logger.dim('(dry-run mode - no files will be uploaded)');
   }
-  console.log('');
+  logger.log('');
 
   try {
     const result = await runMgrepWatch({
@@ -117,22 +127,23 @@ async function runIndex(options: IndexOptions): Promise<CommandResult<IndexResul
       store,
       dryRun: options.dryRun || false,
       timeoutMs,
+      jsonMode,
     });
 
     const duration = (Date.now() - startTime) / 1000;
 
-    if (!options.json) {
-      console.log('');
+    if (!jsonMode) {
+      logger.log('');
       if (options.dryRun) {
-        console.log(chalk.green('✓ Dry run complete'));
+        logger.success('✓ Dry run complete');
       } else {
-        console.log(chalk.green('✓ Indexing complete'));
+        logger.success('✓ Indexing complete');
       }
-      console.log('');
-      console.log(`  Files found:    ${result.filesFound.toLocaleString()}`);
-      console.log(`  Files uploaded: ${result.filesUploaded.toLocaleString()}`);
-      console.log(`  Files deleted:  ${result.filesDeleted.toLocaleString()}`);
-      console.log(`  Duration:       ${duration.toFixed(1)}s`);
+      logger.log('');
+      logger.log(`  Files found:    ${result.filesFound.toLocaleString()}`);
+      logger.log(`  Files uploaded: ${result.filesUploaded.toLocaleString()}`);
+      logger.log(`  Files deleted:  ${result.filesDeleted.toLocaleString()}`);
+      logger.log(`  Duration:       ${duration.toFixed(1)}s`);
     }
 
     return {
@@ -156,6 +167,7 @@ interface MgrepWatchOptions {
   store: string;
   dryRun: boolean;
   timeoutMs: number;
+  jsonMode: boolean;
 }
 
 interface MgrepWatchResult {
@@ -183,8 +195,13 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
     child.stdout.on('data', (data) => {
       const text = data.toString();
       stdout += text;
-      // Stream output to console
-      process.stdout.write(chalk.dim(text));
+      // In JSON mode, stream to stderr to keep stdout clean
+      // In normal mode, stream to stdout
+      if (options.jsonMode) {
+        process.stderr.write(chalk.dim(text));
+      } else {
+        process.stdout.write(chalk.dim(text));
+      }
     });
 
     child.stderr.on('data', (data) => {

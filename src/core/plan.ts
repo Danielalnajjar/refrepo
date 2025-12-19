@@ -9,6 +9,7 @@ import ignore, { type Ignore } from 'ignore';
 import { buildIgnoreContent } from './ignore-rules.js';
 import { getRepoPath, getEnabledRepos } from './manifest.js';
 import { PLAN_THRESHOLDS, DEFAULT_MAX_FILE_SIZE_BYTES } from './constants.js';
+import { toPosixPath } from './path.js';
 import type { Manifest, PlanResult, WarningLevel } from './types.js';
 
 export interface PlanOptions {
@@ -60,7 +61,8 @@ function walkDirectory(
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath);
+    // Convert to POSIX-style paths for consistent ignore matching on Windows
+    const relativePath = toPosixPath(path.relative(baseDir, fullPath));
 
     // Skip if ignored
     if (ig.ignores(relativePath)) {

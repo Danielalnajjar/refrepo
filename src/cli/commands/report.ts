@@ -10,6 +10,7 @@ import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { computePlan, formatBytes, type PlanSummary, type RepoPlanResult } from '../../core/plan.js';
 import { DEFAULT_REPORTS_DIR, DEFAULT_REPORT_NAME } from '../../core/constants.js';
+import { createLogger, printJson, type Logger } from '../output.js';
 import type { CommandResult, WarningLevel } from '../../core/types.js';
 
 interface ReportOptions {
@@ -32,25 +33,31 @@ export function createReportCommand(): Command {
     .option('--open', 'Open report in browser after generation')
     .option('--output <path>', 'Custom output path')
     .action(async (options: ReportOptions) => {
-      const result = await runReport(options);
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
 
-      if (options.json) {
-        console.log(JSON.stringify(result.data, null, 2));
+      const result = await runReport(options, logger);
+
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success && result.data) {
-        console.log(chalk.green('✓ Report generated'));
-        console.log(`  ${result.data.outputPath}`);
+        logger.success('✓ Report generated');
+        logger.log(`  ${result.data.outputPath}`);
 
         if (options.open) {
-          openInBrowser(result.data.outputPath);
+          openInBrowser(result.data.outputPath, logger);
         }
       } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 }
 
-async function runReport(options: ReportOptions): Promise<CommandResult<ReportResult>> {
+async function runReport(options: ReportOptions, logger: Logger): Promise<CommandResult<ReportResult>> {
   // Load manifest
   const manifestResult = safeLoadManifest();
   if (!manifestResult.success || !manifestResult.data) {
@@ -62,7 +69,7 @@ async function runReport(options: ReportOptions): Promise<CommandResult<ReportRe
 
   const manifest = manifestResult.data;
 
-  console.log(chalk.dim('Computing plan data...'));
+  logger.dim('Computing plan data...');
 
   try {
     const summary = computePlan(manifest);
@@ -81,7 +88,7 @@ async function runReport(options: ReportOptions): Promise<CommandResult<ReportRe
     }
 
     // Generate HTML
-    console.log(chalk.dim('Generating HTML report...'));
+    logger.dim('Generating HTML report...');
     const html = generateHtmlReport(summary, manifest.defaultStore);
 
     // Write file
@@ -102,7 +109,7 @@ async function runReport(options: ReportOptions): Promise<CommandResult<ReportRe
   }
 }
 
-function openInBrowser(filePath: string): void {
+function openInBrowser(filePath: string, logger: Logger): void {
   const command = process.platform === 'darwin'
     ? `open "${filePath}"`
     : process.platform === 'win32'
@@ -111,7 +118,7 @@ function openInBrowser(filePath: string): void {
 
   exec(command, (error) => {
     if (error) {
-      console.log(chalk.yellow(`Could not open browser: ${error.message}`));
+      logger.warn(`Could not open browser: ${error.message}`);
     }
   });
 }

@@ -52,5 +52,8 @@ export const SPARSE_CHECKOUT_ROOT_FILES = [
 export const ENV_VARS = {
   root: 'REFREPO_ROOT',
   store: 'REFREPO_STORE',
-  mgrepApiKey: 'MIXEDBREAD_API_KEY',
+  /** Primary mgrep API key env var (canonical) */
+  mgrepApiKey: 'MXBAI_API_KEY',
+  /** Legacy mgrep API key env var (deprecated, for backwards compatibility) */
+  mgrepApiKeyLegacy: 'MIXEDBREAD_API_KEY',
 } as const;
