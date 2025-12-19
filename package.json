@@ -1,0 +1,39 @@
+{
+  "name": "refrepo",
+  "version": "0.1.0",
+  "description": "Reference Repo Manager - CLI tool for managing local reference repositories with mgrep integration",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "refrepo": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "refrepo": "node --loader ts-node/esm src/cli/index.ts",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": ["reference", "repos", "mgrep", "mixedbread", "cli"],
+  "author": "Daniel",
+  "license": "MIT",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "execa": "^9.6.1",
+    "ignore": "^7.0.5",
+    "yaml": "^2.8.2",
+    "zod": "^4.2.1"
+  }
+}
