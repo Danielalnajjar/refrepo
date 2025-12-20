@@ -197,6 +197,7 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
 
     let stdout = '';
     let stderr = '';
+    let syncComplete = false;
 
     child.stdout.on('data', (data) => {
       const text = data.toString();
@@ -207,6 +208,16 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
         process.stderr.write(chalk.dim(text));
       } else {
         process.stdout.write(chalk.dim(text));
+      }
+
+      // Detect when initial sync is complete and exit
+      // mgrep outputs "Initial sync complete" when done with first pass
+      if (!syncComplete && text.includes('Initial sync complete')) {
+        syncComplete = true;
+        // Give it a moment to flush any remaining output, then terminate
+        setTimeout(() => {
+          child.kill('SIGTERM');
+        }, 500);
       }
     });
 
@@ -224,6 +235,13 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
 
     child.on('close', (code) => {
       clearTimeout(timeout);
+
+      // If we terminated after sync complete, treat as success
+      if (syncComplete) {
+        const result = parseMgrepOutput(stdout, options.dryRun);
+        resolve(result);
+        return;
+      }
 
       if (code !== 0) {
         // Check if it's a "completed" exit (mgrep watch exits after initial sync in non-watch mode)
