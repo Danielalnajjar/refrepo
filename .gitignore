@@ -29,8 +29,9 @@ reports/
 # Manifest (user-specific)
 refrepo.manifest.yaml
 
-# Baseline (user-specific)
+# Baseline and changes (user-specific)
 .refrepo-baseline.json
+.refrepo-changes.json
 
 # Internal planning docs
 plans/

@@ -2,6 +2,8 @@
  * refrepo plan - Compute index plan
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
@@ -9,6 +11,8 @@ import { computePlan, formatBytes, type PlanSummary, type RepoPlanResult } from 
 import { loadBaseline, compareToBaseline } from '../../core/baseline.js';
 import { createLogger, printJson } from '../output.js';
 import type { CommandResult, WarningLevel } from '../../core/types.js';
+
+const CHANGES_FILENAME = '.refrepo-changes.json';
 
 interface PlanOptions {
   json?: boolean;
@@ -197,11 +201,27 @@ async function runPlan(
     const baseline = loadBaseline();
     if (baseline && summary.allFiles) {
       const diff = compareToBaseline(summary.allFiles, baseline);
-      (summary as PlanSummaryWithChanges).baselineComparison = {
+      const comparison = {
         baselineDate: baseline.timestamp,
         newFiles: diff.newFiles,
         removedFiles: diff.removedFiles,
       };
+      (summary as PlanSummaryWithChanges).baselineComparison = comparison;
+
+      // Always save changes to file for easy access
+      const changesFile = {
+        timestamp: new Date().toISOString(),
+        baselineDate: baseline.timestamp,
+        totalFiles: summary.totals.includedFileCount,
+        newFiles: diff.newFiles,
+        removedFiles: diff.removedFiles,
+        hasChanges: diff.newFiles.length > 0 || diff.removedFiles.length > 0,
+      };
+      fs.writeFileSync(
+        path.join(process.cwd(), CHANGES_FILENAME),
+        JSON.stringify(changesFile, null, 2),
+        'utf-8'
+      );
     }
 
     return {
