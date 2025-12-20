@@ -15,6 +15,7 @@ import { createIndexCommand } from './commands/index-cmd.js';
 import { createReportCommand } from './commands/report.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createSearchCommand } from './commands/search.js';
+import { createSuggestCommand } from './commands/suggest.js';
 
 const program = new Command();
 
@@ -33,6 +34,7 @@ program.addCommand(createIndexCommand());
 program.addCommand(createReportCommand());
 program.addCommand(createDoctorCommand());
 program.addCommand(createSearchCommand());
+program.addCommand(createSuggestCommand());
 
 // Parse and execute
 program.parse();
