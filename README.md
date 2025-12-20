@@ -18,27 +18,42 @@ refrepo helps you maintain a curated collection of reference repositories for se
 npm install -g refrepo
 ```
 
-## Quick Start
+## Why This Tool?
 
+mgrep indexes directories for semantic code search, but managing multiple reference repositories manually is tedious:
+- Cloning/updating 15+ repos
+- Filtering out non-relevant code (Vue/Solid packages when you only use React)
+- Preventing accidental indexing of `node_modules` or build artifacts
+- Tracking what's indexed and what needs updating
+
+refrepo automates this with a manifest-driven approach and safety gates.
+
+## Workflows
+
+### Initial Setup
 ```bash
-# Initialize a manifest with default repositories
-refrepo init
-
-# Clone/update all repositories
-refrepo sync
-
-# Preview what will be indexed
-refrepo plan
-
-# Generate .mgrepignore file
-refrepo ignore build --global
-
-# Run mgrep indexing
-refrepo index
-
-# Generate HTML status report
-refrepo report --open
+refrepo init                    # Create manifest with default repos
+refrepo sync                    # Clone all repositories
+refrepo ignore build --global   # Generate .mgrepignore
+refrepo plan                    # Verify file counts look reasonable
+refrepo index --dry-run         # Preview what mgrep will index
+refrepo index                   # Actually index to mgrep store
 ```
+
+### Weekly Update
+```bash
+refrepo sync                    # Pull latest changes
+refrepo plan                    # Check nothing unexpected
+refrepo index --dry-run         # Preview changes
+refrepo index                   # Re-index updated files
+```
+
+### Adding a New Repository
+1. Edit `refrepo.manifest.yaml` and add a repo entry
+2. Run `refrepo sync` to clone it
+3. Optionally add repo-specific ignore rules in `src/core/ignore-rules.ts`
+4. Run `refrepo ignore build --global` to regenerate ignore file
+5. Run `refrepo plan` to verify, then `refrepo index`
 
 ## Commands
 
@@ -53,6 +68,14 @@ refrepo report --open
 | `refrepo report` | Generate HTML status dashboard |
 | `refrepo doctor` | Check system dependencies |
 
+## File Locations
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `refrepo.manifest.yaml` | Current directory | Repository definitions and settings |
+| `.mgrepignore` | Repository root | Ignore patterns for mgrep indexing |
+| `refrepo-report-*.html` | Current directory | Generated HTML status reports |
+
 ## Configuration
 
 ### Manifest File
@@ -62,7 +85,7 @@ The manifest (`refrepo.manifest.yaml`) defines your repository collection:
 ```yaml
 version: 1
 defaultRoot: ~/code/Reference Repos
-defaultStore: my-mgrep-store
+defaultStore: my-mgrep-store          # Named collection in Mixedbread cloud
 repos:
   - id: tanstack-router
     name: TanStack Router
@@ -146,6 +169,25 @@ refrepo plan --json 2>/dev/null | jq -e .success
 # Run tests
 pnpm test
 ```
+
+## Architecture
+
+```
+refrepo.manifest.yaml     # Source of truth: repos, root path, store name
+        ↓
+   refrepo sync           # Clones/pulls repos to defaultRoot
+        ↓
+   refrepo ignore         # Generates .mgrepignore from ignore-rules.ts
+        ↓
+   refrepo plan           # Walks files, applies ignore rules, calculates totals
+        ↓
+   refrepo index          # Runs `mgrep watch` to sync files to Mixedbread store
+```
+
+Key source files:
+- `src/core/ignore-rules.ts` - Global and per-repo ignore patterns
+- `src/core/plan.ts` - File walking and threshold logic
+- `src/core/manifest.ts` - Manifest loading and repo definitions
 
 ## License
 
