@@ -15,6 +15,14 @@ interface PlanOptions {
   repo?: string;
 }
 
+interface PlanSummaryWithChanges extends PlanSummary {
+  baselineComparison?: {
+    baselineDate: string;
+    newFiles: string[];
+    removedFiles: string[];
+  };
+}
+
 export function createPlanCommand(): Command {
   return new Command('plan')
     .description('Compute index plan (file counts, sizes, warnings)')
@@ -184,6 +192,17 @@ async function runPlan(
     const summary = computePlan(manifestResult.data, {
       repoId: options.repo,
     });
+
+    // Add baseline comparison to the summary for JSON output
+    const baseline = loadBaseline();
+    if (baseline && summary.allFiles) {
+      const diff = compareToBaseline(summary.allFiles, baseline);
+      (summary as PlanSummaryWithChanges).baselineComparison = {
+        baselineDate: baseline.timestamp,
+        newFiles: diff.newFiles,
+        removedFiles: diff.removedFiles,
+      };
+    }
 
     return {
       success: true,
