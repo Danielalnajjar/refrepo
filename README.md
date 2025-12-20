@@ -49,11 +49,34 @@ refrepo index                   # Re-index updated files
 ```
 
 ### Adding a New Repository
-1. Edit `refrepo.manifest.yaml` and add a repo entry
-2. Run `refrepo sync` to clone it
-3. Optionally add repo-specific ignore rules in `src/core/ignore-rules.ts`
-4. Run `refrepo ignore build --global` to regenerate ignore file
-5. Run `refrepo plan` to verify, then `refrepo index`
+
+**Step 1**: Edit `refrepo.manifest.yaml` and add a repo entry:
+```yaml
+repos:
+  # ... existing repos ...
+  - id: my-new-repo           # Unique identifier (used for ignore rules)
+    name: My New Repo         # Display name
+    url: https://github.com/org/repo.git
+    branch: main
+    category: source          # source | glue | example
+    localDir: my-new-repo     # Folder name under defaultRoot
+    enabled: true
+```
+
+**Step 2**: Clone and verify:
+```bash
+refrepo sync                    # Clone the new repo
+refrepo plan                    # Check file counts - are they reasonable?
+```
+
+**Step 3** (optional): If the repo has large sections you don't need (e.g., Vue/Angular code in a multi-framework library), add repo-specific ignore rules. See [Ignore Rules](#ignore-rules) below.
+
+**Step 4**: Regenerate ignore file and index:
+```bash
+refrepo ignore build --global   # Only needed if you added repo-specific rules
+refrepo index --dry-run         # Preview
+refrepo index                   # Index to mgrep
+```
 
 ## Commands
 
@@ -116,7 +139,11 @@ RED status blocks indexing unless `--force` is used.
 
 ## Ignore Rules
 
-refrepo includes comprehensive ignore rules for:
+Ignore rules determine what gets indexed. There are two tiers:
+
+### Global Rules (apply to all repos)
+
+Defined in `GLOBAL_IGNORE_PATTERNS` in `src/core/ignore-rules.ts`. These filter out:
 
 - Build outputs (`dist/`, `node_modules/`, `.next/`)
 - Lock files (`pnpm-lock.yaml`, `package-lock.json`)
@@ -124,7 +151,32 @@ refrepo includes comprehensive ignore rules for:
 - Test files and coverage
 - IDE and OS files
 
-Repo-specific exclusions filter out non-React framework code from TanStack packages.
+These apply automatically to every repo - no configuration needed.
+
+### Repo-Specific Rules (optional)
+
+For repos with large sections you don't need, add entries to `REPO_SPECIFIC_IGNORES` in `src/core/ignore-rules.ts`:
+
+```typescript
+{
+  id: 'my-new-repo',              // Must match the id in manifest
+  notes: 'Keep only React code',
+  dropPaths: [
+    'packages/vue/',              // Drop Vue implementation
+    'packages/angular/',          // Drop Angular implementation
+    'examples/solid/',            // Drop Solid examples
+    'docs/api/',                  // Drop generated API docs
+  ],
+},
+```
+
+After editing, rebuild and regenerate:
+```bash
+pnpm build
+refrepo ignore build --global
+```
+
+**When to add repo-specific rules**: Only if `refrepo plan` shows unexpectedly high file counts. The global rules handle most cases.
 
 ## JSON Mode
 
