@@ -9,6 +9,8 @@ refrepo helps you maintain a curated collection of reference repositories for se
 - **Repository Management**: Clone and sync multiple repos from a manifest
 - **Ignore Rules**: Generate `.mgrepignore` files with smart defaults and repo-specific exclusions
 - **Index Planning**: Preview what will be indexed with file count/size analysis
+- **Change Tracking**: Detect new files since last index for easy review
+- **AI Suggestions**: Use Claude to analyze new files and recommend ignore rules
 - **Safety Gates**: Block indexing when thresholds are exceeded
 - **Reporting**: Generate HTML dashboards showing repository status
 
@@ -43,9 +45,19 @@ refrepo index                   # Actually index to mgrep store
 ### Weekly Update
 ```bash
 refrepo sync                    # Pull latest changes
-refrepo plan                    # Check nothing unexpected
-refrepo index --dry-run         # Preview changes
+refrepo plan                    # See new files since last index
+refrepo suggest                 # (Optional) AI recommends ignore rules for new files
 refrepo index                   # Re-index updated files
+```
+
+The `plan` command shows which files are new since your last index:
+```
+Changes since last index
+  (baseline from 12/15/2025)
+
+  + 5 new files:
+    tanstack-router/packages/react-router/src/newFeature.ts
+    ...
 ```
 
 ### Adding a New Repository
@@ -92,7 +104,8 @@ refrepo index                   # Index to mgrep
 | `refrepo init` | Initialize manifest with default repos |
 | `refrepo status` | Check repository states |
 | `refrepo sync` | Clone/update all repositories |
-| `refrepo plan` | Preview indexing scope with warnings |
+| `refrepo plan` | Preview indexing scope, show new files since last index |
+| `refrepo suggest` | Use Claude AI to recommend ignore rules for new files |
 | `refrepo ignore build` | Generate .mgrepignore files |
 | `refrepo index` | Run mgrep indexing with safety checks |
 | `refrepo report` | Generate HTML status dashboard |
@@ -104,6 +117,8 @@ refrepo index                   # Index to mgrep
 |------|----------|---------|
 | `refrepo.manifest.yaml` | Current directory | Repository definitions and settings |
 | `.mgrepignore` | Repository root | Ignore patterns for mgrep indexing |
+| `.refrepo-baseline.json` | Current directory | Snapshot of indexed files (created after `index`) |
+| `.refrepo-changes.json` | Current directory | New/removed files since baseline (updated after `plan`) |
 | `refrepo-report-*.html` | Current directory | Generated HTML status reports |
 
 ## Configuration
@@ -212,6 +227,7 @@ refrepo index --dry-run --json | jq .data.filesUploaded
 - Node.js 20+
 - [mgrep](https://github.com/mixedbread-ai/mgrep) for semantic search
 - Git
+- [Claude Code](https://claude.ai/code) (optional, for `refrepo suggest` command)
 - Works on Linux, macOS, and Windows
 
 ## Verification
@@ -229,6 +245,42 @@ refrepo plan --json 2>/dev/null | jq -e .success
 pnpm test
 ```
 
+## Change Tracking
+
+refrepo tracks what files were indexed and shows you what's new on subsequent runs.
+
+### How It Works
+
+1. **After `refrepo index`**: A baseline is saved (`.refrepo-baseline.json`) with all indexed file paths
+2. **On `refrepo plan`**: New and removed files are shown compared to the baseline
+3. **Changes file**: `.refrepo-changes.json` is saved for automation/AI analysis
+
+### AI-Powered Suggestions
+
+The `refrepo suggest` command calls Claude Code to analyze new files:
+
+```bash
+refrepo plan              # Detect new files, save to .refrepo-changes.json
+refrepo suggest           # Claude analyzes and recommends ignore patterns
+```
+
+Example output:
+```
+Analyzing new files with Claude...
+Found 3 new files
+
+Suggestions:
+
+## IGNORE (2 files)
+- `packages/vue-router/` - Vue code, not relevant to React stack
+- `examples/angular/` - Angular examples
+
+## KEEP (1 file)
+- `packages/react-router/newFeature.ts` - React, relevant to stack
+```
+
+**Note**: Requires [Claude Code](https://claude.ai/code) to be installed and authenticated.
+
 ## Architecture
 
 ```
@@ -239,14 +291,18 @@ refrepo.manifest.yaml     # Source of truth: repos, root path, store name
    refrepo ignore         # Generates .mgrepignore from ignore-rules.ts
         ↓
    refrepo plan           # Walks files, applies ignore rules, calculates totals
+        ↓                   Saves .refrepo-changes.json with new files
+   refrepo suggest        # (Optional) Claude analyzes new files
         ↓
    refrepo index          # Runs `mgrep watch` to sync files to Mixedbread store
+                            Saves .refrepo-baseline.json for future comparisons
 ```
 
 Key source files:
 - `src/core/ignore-rules.ts` - Global and per-repo ignore patterns
 - `src/core/plan.ts` - File walking and threshold logic
 - `src/core/manifest.ts` - Manifest loading and repo definitions
+- `src/core/baseline.ts` - Baseline tracking for change detection
 
 ## License
 
