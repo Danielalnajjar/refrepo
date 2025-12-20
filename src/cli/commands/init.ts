@@ -11,6 +11,7 @@ import {
   resolveManifestPath,
 } from '../../core/manifest.js';
 import { resolveRoot } from '../../core/config.js';
+import { createLogger, printJson } from '../output.js';
 import type { CommandResult, Manifest } from '../../core/types.js';
 
 interface InitOptions {
@@ -33,24 +34,29 @@ export function createInitCommand(): Command {
     .option('--force', 'Overwrite existing manifest')
     .option('--root <path>', 'Override default root path')
     .action(async (options: InitOptions) => {
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
       const result = await runInit(options);
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success && result.data) {
         const d = result.data;
-        console.log(chalk.green('✓') + ' Manifest created: ' + chalk.cyan(d.manifestPath));
-        console.log('');
-        console.log('  Root path:    ' + chalk.dim(d.root));
-        console.log('  Total repos:  ' + d.repoCount);
-        console.log('  Enabled:      ' + d.enabledCount);
-        console.log('');
-        console.log('Next steps:');
-        console.log('  ' + chalk.cyan('refrepo status') + '  - Check which repos exist');
-        console.log('  ' + chalk.cyan('refrepo sync') + '    - Clone/pull all repos');
+        logger.success('✓ Manifest created: ' + chalk.cyan(d.manifestPath));
+        logger.log('');
+        logger.log('  Root path:    ' + chalk.dim(d.root));
+        logger.log('  Total repos:  ' + d.repoCount);
+        logger.log('  Enabled:      ' + d.enabledCount);
+        logger.log('');
+        logger.log('Next steps:');
+        logger.log('  ' + chalk.cyan('refrepo status') + '  - Check which repos exist');
+        logger.log('  ' + chalk.cyan('refrepo sync') + '    - Clone/pull all repos');
       } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 }

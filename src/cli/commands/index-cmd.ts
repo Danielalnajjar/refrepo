@@ -17,7 +17,6 @@ interface IndexOptions {
   dryRun?: boolean;
   force?: boolean;
   timeoutSeconds?: number;
-  repo?: string;
 }
 
 interface IndexResult {
@@ -37,7 +36,6 @@ export function createIndexCommand(): Command {
     .option('--dry-run', 'Preview without indexing')
     .option('--force', 'Skip plan check')
     .option('--timeout-seconds <n>', 'Kill mgrep after N seconds', '300')
-    .option('--repo <id>', 'Index single repo')
     .action(async (options: IndexOptions) => {
       const jsonMode = options.json === true;
       const logger = createLogger({ jsonMode });
@@ -80,7 +78,7 @@ async function runIndex(
     logger.dim('Checking index plan...');
 
     try {
-      const plan = computePlan(manifest, { repoId: options.repo });
+      const plan = computePlan(manifest, {});
 
       if (plan.overallWarningLevel === 'red') {
         logger.log('');

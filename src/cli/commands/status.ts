@@ -13,6 +13,7 @@ import {
 } from '../../core/manifest.js';
 import { getRepoStatus } from '../../core/git.js';
 import { resolveRoot } from '../../core/config.js';
+import { createLogger, printJson } from '../output.js';
 import type { CommandResult, RepoStatusInfo, RepoConfig } from '../../core/types.js';
 
 interface StatusOptions {
@@ -38,15 +39,20 @@ export function createStatusCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--root <path>', 'Override root path')
     .action(async (options: StatusOptions) => {
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
       const result = await runStatus(options);
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success && result.data) {
         printStatus(result.data);
       } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 }

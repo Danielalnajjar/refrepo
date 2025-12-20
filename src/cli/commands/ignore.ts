@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { writeIgnoreFiles, type IgnoreBuildSummary } from '../../core/ignore.js';
+import { createLogger, printJson } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
 
 interface IgnoreBuildOptions {
@@ -24,15 +25,20 @@ export function createIgnoreCommand(): Command {
     .option('--dry-run', 'Preview without writing files')
     .option('--global', 'Use global mode (single file at root)')
     .action(async (options: IgnoreBuildOptions) => {
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
       const result = await runIgnoreBuild(options);
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success && result.data) {
         printIgnoreBuildResult(result.data, options);
       } else {
-        console.error(chalk.red('Error:') + ' ' + result.error);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 

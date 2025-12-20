@@ -776,7 +776,12 @@ export function buildIgnoreContent(repoId: string): string {
 
   // Add global patterns with **/ prefix for recursive matching
   for (const pattern of GLOBAL_IGNORE_PATTERNS) {
-    lines.push(`**/${pattern}`);
+    if (pattern.startsWith('!')) {
+      // Negation patterns: ! must be first character on line
+      lines.push(`!**/${pattern.slice(1)}`);
+    } else {
+      lines.push(`**/${pattern}`);
+    }
   }
 
   // Add repo-specific patterns

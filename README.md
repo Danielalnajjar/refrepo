@@ -127,7 +127,7 @@ refrepo index --dry-run --json | jq .data.filesUploaded
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
 - [mgrep](https://github.com/mixedbread-ai/mgrep) for semantic search
 - Git
 - Works on Linux, macOS, and Windows

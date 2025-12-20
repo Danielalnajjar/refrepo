@@ -3,6 +3,7 @@
  */
 
 import { Command } from 'commander';
+import { createLogger, printJson } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
 
 interface SearchOptions {
@@ -19,16 +20,21 @@ export function createSearchCommand(): Command {
     .option('--repo <id>', 'Scope to specific repo')
     .option('--path <path>', 'Scope to relative path')
     .action(async (query: string, options: SearchOptions) => {
+      const jsonMode = options.json === true;
+      const logger = createLogger({ jsonMode });
       const result = await runSearch(query, options);
 
-      if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+      if (jsonMode) {
+        printJson(result);
+        if (!result.success) {
+          process.exitCode = 1;
+        }
       } else if (result.success) {
-        console.log('Search results:');
-        console.log('(search command not yet implemented)');
+        logger.log('Search results:');
+        logger.log('(search command not yet implemented)');
       } else {
-        console.error(`Error: ${result.error}`);
-        process.exit(1);
+        logger.error('Error: ' + result.error);
+        process.exitCode = 1;
       }
     });
 }
