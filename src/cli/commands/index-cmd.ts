@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { computePlan, formatBytes } from '../../core/plan.js';
+import { saveBaseline } from '../../core/baseline.js';
 import { createLogger, printJson, type Logger } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
 
@@ -73,13 +74,16 @@ async function runIndex(
   const root = options.root || manifest.defaultRoot;
   const store = manifest.defaultStore;
 
-  // Step 1: Run plan check (unless --force)
-  if (!options.force) {
-    logger.dim('Checking index plan...');
+  // Step 1: Compute plan (always needed for baseline)
+  logger.dim('Checking index plan...');
+  let planFiles: string[] | undefined;
 
-    try {
-      const plan = computePlan(manifest, {});
+  try {
+    const plan = computePlan(manifest, {});
+    planFiles = plan.allFiles;
 
+    // Only check thresholds if not forced
+    if (!options.force) {
       if (plan.overallWarningLevel === 'red') {
         logger.log('');
         logger.error('✖ Index blocked - plan exceeds error thresholds');
@@ -103,10 +107,13 @@ async function runIndex(
         logger.success('✓ Plan check passed');
         logger.log('');
       }
-    } catch {
-      logger.warn('⚠ Could not compute plan, proceeding anyway');
+    } else {
+      logger.success('✓ Plan computed (--force, skipping threshold check)');
       logger.log('');
     }
+  } catch {
+    logger.warn('⚠ Could not compute plan, proceeding anyway');
+    logger.log('');
   }
 
   // Step 2: Run mgrep watch
@@ -149,6 +156,13 @@ async function runIndex(
         logger.log(`  Files uploaded:   ${result.filesUploaded.toLocaleString()}`);
         logger.log(`  Files deleted:    ${result.filesDeleted.toLocaleString()}`);
         logger.log(`  Duration:         ${duration.toFixed(1)}s`);
+
+        // Save baseline for future plan comparisons
+        if (planFiles && planFiles.length > 0) {
+          saveBaseline(planFiles);
+          logger.log('');
+          logger.dim('  Baseline saved for future comparisons');
+        }
       }
     }
 
@@ -211,8 +225,9 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
       }
 
       // Detect when initial sync is complete and exit
-      // mgrep outputs "Initial sync complete" when done with first pass
-      if (!syncComplete && text.includes('Initial sync complete')) {
+      // mgrep outputs "✔ Initial sync complete" when done with first pass
+      // Check both the current chunk and accumulated output in case message is split
+      if (!syncComplete && (text.includes('Initial sync complete') || stdout.includes('Initial sync complete'))) {
         syncComplete = true;
         // Give it a moment to flush any remaining output, then terminate
         setTimeout(() => {
@@ -224,7 +239,21 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
     child.stderr.on('data', (data) => {
       const text = data.toString();
       stderr += text;
-      process.stderr.write(chalk.red(text));
+      // mgrep uses ora spinner which outputs to stderr
+      // Show as dim instead of red for normal progress messages
+      if (text.includes('Indexing') || text.includes('sync complete')) {
+        process.stderr.write(chalk.dim(text));
+      } else {
+        process.stderr.write(chalk.red(text));
+      }
+
+      // Also check stderr for sync complete (mgrep uses ora spinner on stderr)
+      if (!syncComplete && (text.includes('Initial sync complete') || stderr.includes('Initial sync complete'))) {
+        syncComplete = true;
+        setTimeout(() => {
+          child.kill('SIGTERM');
+        }, 500);
+      }
     });
 
     // Set timeout
@@ -236,9 +265,12 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
     child.on('close', (code) => {
       clearTimeout(timeout);
 
+      // Combine stdout and stderr for parsing (mgrep uses both)
+      const combinedOutput = stdout + '\n' + stderr;
+
       // If we terminated after sync complete, treat as success
       if (syncComplete) {
-        const result = parseMgrepOutput(stdout, options.dryRun);
+        const result = parseMgrepOutput(combinedOutput, options.dryRun);
         resolve(result);
         return;
       }
@@ -246,11 +278,9 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
       if (code !== 0) {
         // Check if it's a "completed" exit (mgrep watch exits after initial sync in non-watch mode)
         // Parse output to check if it completed successfully
-        const output = stdout + stderr;
-
-        if (output.includes('found') && output.includes('files')) {
+        if (combinedOutput.includes('found') && combinedOutput.includes('files')) {
           // Likely completed successfully, parse the result
-          const result = parseMgrepOutput(output, options.dryRun);
+          const result = parseMgrepOutput(combinedOutput, options.dryRun);
           resolve(result);
           return;
         }
@@ -259,7 +289,7 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
         return;
       }
 
-      const result = parseMgrepOutput(stdout, options.dryRun);
+      const result = parseMgrepOutput(combinedOutput, options.dryRun);
       resolve(result);
     });
 
@@ -271,26 +301,37 @@ function runMgrepWatch(options: MgrepWatchOptions): Promise<MgrepWatchResult> {
 }
 
 function parseMgrepOutput(output: string, dryRun: boolean): MgrepWatchResult {
-  // Parse output like:
-  // "Dry run: found 3186 files in total, would have uploaded 943 changed or new files, would have deleted 854 files"
-  // or actual run output
+  // Parse output formats:
+  // Dry run: "found 3186 files in total, would have uploaded 943 changed or new files, would have deleted 854 files"
+  // Actual:  "Initial sync complete (2328/2328) • uploaded 0"
+  //          or "Initial sync complete (2328/2328) • uploaded 5 • deleted 3"
 
   let filesFound = 0;
   let filesUploaded = 0;
   let filesDeleted = 0;
 
-  // Try to find summary line
+  // Try dry-run format first
   const foundMatch = output.match(/found\s+(\d+)\s+files?\s+in\s+total/i);
   if (foundMatch) {
     filesFound = parseInt(foundMatch[1], 10);
   }
 
-  const uploadMatch = output.match(/(?:would have uploaded|uploaded)\s+(\d+)/i);
+  // Try actual run format: "Initial sync complete (X/Y)"
+  if (filesFound === 0) {
+    const syncMatch = output.match(/Initial sync complete\s*\((\d+)\/(\d+)\)/i);
+    if (syncMatch) {
+      filesFound = parseInt(syncMatch[2], 10); // Use the total (second number)
+    }
+  }
+
+  // Parse uploaded count - handles both "would have uploaded X" and "• uploaded X"
+  const uploadMatch = output.match(/(?:would have uploaded|•\s*uploaded)\s+(\d+)/i);
   if (uploadMatch) {
     filesUploaded = parseInt(uploadMatch[1], 10);
   }
 
-  const deleteMatch = output.match(/(?:would have deleted|deleted)\s+(\d+)/i);
+  // Parse deleted count - handles both "would have deleted X" and "• deleted X"
+  const deleteMatch = output.match(/(?:would have deleted|•\s*deleted)\s+(\d+)/i);
   if (deleteMatch) {
     filesDeleted = parseInt(deleteMatch[1], 10);
   }

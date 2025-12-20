@@ -31,6 +31,8 @@ export interface RepoPlanResult extends PlanResult {
   repoName: string;
   localDir: string;
   repoPath: string;
+  /** All included file paths (relative to repo root) */
+  files?: string[];
 }
 
 export interface PlanSummary {
@@ -41,6 +43,8 @@ export interface PlanSummary {
     repoCount: number;
   };
   overallWarningLevel: WarningLevel;
+  /** All included file paths (relative to each repo's localDir) for baseline comparison */
+  allFiles?: string[];
 }
 
 /**
@@ -222,6 +226,9 @@ export function computeRepoPlan(
   const warningLevel = getWarningLevel(includedFileCount, includedTotalBytes);
   const warnings = generateWarnings(includedFileCount, includedTotalBytes);
 
+  // Extract file paths prefixed with localDir for baseline tracking
+  const filePaths = files.map((f) => `${localDir}/${f.path}`);
+
   return {
     repoId,
     repoName,
@@ -233,6 +240,7 @@ export function computeRepoPlan(
     extensionHistogram,
     warningLevel,
     warnings,
+    files: filePaths,
   };
 }
 
@@ -285,6 +293,14 @@ export function computePlan(manifest: Manifest, options: PlanOptions = {}): Plan
     repoCount: repos.length,
   };
 
+  // Aggregate all files for baseline comparison
+  const allFiles: string[] = [];
+  for (const repo of repos) {
+    if (repo.files) {
+      allFiles.push(...repo.files);
+    }
+  }
+
   // Overall warning level (worst of all repos)
   const overallWarningLevel: WarningLevel = repos.some((r) => r.warningLevel === 'red')
     ? 'red'
@@ -296,5 +312,6 @@ export function computePlan(manifest: Manifest, options: PlanOptions = {}): Plan
     repos,
     totals,
     overallWarningLevel,
+    allFiles,
   };
 }

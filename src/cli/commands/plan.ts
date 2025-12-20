@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { computePlan, formatBytes, type PlanSummary, type RepoPlanResult } from '../../core/plan.js';
+import { loadBaseline, compareToBaseline } from '../../core/baseline.js';
 import { createLogger, printJson } from '../output.js';
 import type { CommandResult, WarningLevel } from '../../core/types.js';
 
@@ -102,6 +103,44 @@ function printPlanResult(data: PlanSummary): void {
   console.log(`  Repos:       ${data.totals.repoCount}`);
   console.log(`  Files:       ${data.totals.includedFileCount.toLocaleString()}`);
   console.log(`  Total Size:  ${formatBytes(data.totals.includedTotalBytes)}`);
+
+  // Check for baseline and show diff
+  const baseline = loadBaseline();
+  if (baseline && data.allFiles) {
+    const diff = compareToBaseline(data.allFiles, baseline);
+    const hasChanges = diff.newFiles.length > 0 || diff.removedFiles.length > 0;
+
+    if (hasChanges) {
+      console.log('');
+      console.log(chalk.bold('Changes since last index'));
+      console.log(chalk.dim(`  (baseline from ${new Date(baseline.timestamp).toLocaleDateString()})`));
+
+      if (diff.newFiles.length > 0) {
+        console.log('');
+        console.log(chalk.green(`  + ${diff.newFiles.length} new file${diff.newFiles.length === 1 ? '' : 's'}:`));
+        // Show all new files
+        for (const file of diff.newFiles) {
+          console.log(chalk.green(`    ${file}`));
+        }
+      }
+
+      if (diff.removedFiles.length > 0) {
+        console.log('');
+        console.log(chalk.red(`  - ${diff.removedFiles.length} removed file${diff.removedFiles.length === 1 ? '' : 's'}:`));
+        // Show all removed files
+        for (const file of diff.removedFiles) {
+          console.log(chalk.red(`    ${file}`));
+        }
+      }
+    } else {
+      console.log('');
+      console.log(chalk.dim('  No changes since last index'));
+    }
+  } else if (!baseline) {
+    console.log('');
+    console.log(chalk.dim('  No baseline yet - run `refrepo index` to create one'));
+  }
+
   console.log('');
 
   // Overall status
