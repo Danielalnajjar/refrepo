@@ -69,7 +69,14 @@ refrepo sync                    # Clone the new repo
 refrepo plan                    # Check file counts - are they reasonable?
 ```
 
-**Step 3** (optional): If the repo has large sections you don't need (e.g., Vue/Angular code in a multi-framework library), add repo-specific ignore rules. See [Ignore Rules](#ignore-rules) below.
+**Step 3** (optional): If the repo has large sections you don't need, analyze its structure:
+
+```bash
+# Generate a directory tree (install: npm install -g tree-cli)
+tree -L 3 -d ~/code/Reference\ Repos/my-new-repo > repo-tree.txt
+```
+
+Review `repo-tree.txt` (or share it with an LLM) and identify directories irrelevant to your stack (e.g., `packages/vue/`, `examples/angular/`). Then add repo-specific ignore rules - see [Ignore Rules](#ignore-rules) below.
 
 **Step 4**: Regenerate ignore file and index:
 ```bash
