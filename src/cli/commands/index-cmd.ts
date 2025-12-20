@@ -132,16 +132,24 @@ async function runIndex(
 
     if (!jsonMode) {
       logger.log('');
+      logger.log('────────────────────────────────────────────────────────────');
       if (options.dryRun) {
         logger.success('✓ Dry run complete');
+        logger.log('');
+        logger.log(`  Files found:      ${result.filesFound.toLocaleString()}`);
+        logger.log(`  Would upload:     ${result.filesUploaded.toLocaleString()} (new or changed)`);
+        logger.log(`  Would delete:     ${result.filesDeleted.toLocaleString()} (removed from index)`);
+        logger.log(`  Duration:         ${duration.toFixed(1)}s`);
+        logger.log('');
+        logger.dim('  To proceed with indexing, run: refrepo index');
       } else {
         logger.success('✓ Indexing complete');
+        logger.log('');
+        logger.log(`  Files found:      ${result.filesFound.toLocaleString()}`);
+        logger.log(`  Files uploaded:   ${result.filesUploaded.toLocaleString()}`);
+        logger.log(`  Files deleted:    ${result.filesDeleted.toLocaleString()}`);
+        logger.log(`  Duration:         ${duration.toFixed(1)}s`);
       }
-      logger.log('');
-      logger.log(`  Files found:    ${result.filesFound.toLocaleString()}`);
-      logger.log(`  Files uploaded: ${result.filesUploaded.toLocaleString()}`);
-      logger.log(`  Files deleted:  ${result.filesDeleted.toLocaleString()}`);
-      logger.log(`  Duration:       ${duration.toFixed(1)}s`);
     }
 
     return {
