@@ -44,6 +44,17 @@ export interface PlanSummary {
 }
 
 /**
+ * Check if a file/directory is hidden (starts with .)
+ * Matches mgrep's isHiddenFile() behavior
+ */
+function isHiddenPath(relativePath: string): boolean {
+  const parts = relativePath.split('/');
+  return parts.some(
+    (part) => part.startsWith('.') && part !== '.' && part !== '..'
+  );
+}
+
+/**
  * Walk directory recursively, respecting ignore rules
  */
 function walkDirectory(
@@ -63,6 +74,11 @@ function walkDirectory(
     const fullPath = path.join(dir, entry.name);
     // Convert to POSIX-style paths for consistent ignore matching on Windows
     const relativePath = toPosixPath(path.relative(baseDir, fullPath));
+
+    // Skip hidden files/directories (matches mgrep behavior)
+    if (isHiddenPath(relativePath)) {
+      continue;
+    }
 
     // Skip if ignored
     if (ig.ignores(relativePath)) {
