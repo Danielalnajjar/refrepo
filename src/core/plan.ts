@@ -15,6 +15,7 @@ import type { Manifest, PlanResult, WarningLevel } from './types.js';
 export interface PlanOptions {
   maxFileSizeBytes?: number;
   repoId?: string;  // Plan single repo
+  customIgnores?: string[];  // Custom ignore patterns from manifest
 }
 
 export interface FileStat {
@@ -203,8 +204,8 @@ export function computeRepoPlan(
 ): RepoPlanResult {
   const maxFileSize = options.maxFileSizeBytes || DEFAULT_MAX_FILE_SIZE_BYTES;
 
-  // Build ignore rules
-  const ignoreContent = buildIgnoreContent(repoId);
+  // Build ignore rules (include custom ignores from manifest)
+  const ignoreContent = buildIgnoreContent(repoId, localDir, options.customIgnores);
   const ig = ignore().add(ignoreContent);
 
   // Walk directory
@@ -251,6 +252,12 @@ export function computePlan(manifest: Manifest, options: PlanOptions = {}): Plan
   const root = manifest.defaultRoot;
   let enabledRepos = getEnabledRepos(manifest);
 
+  // Include custom ignores from manifest in options
+  const planOptions: PlanOptions = {
+    ...options,
+    customIgnores: manifest.customIgnores,
+  };
+
   // Filter to single repo if specified
   if (options.repoId) {
     enabledRepos = enabledRepos.filter((r) => r.id === options.repoId);
@@ -282,7 +289,7 @@ export function computePlan(manifest: Manifest, options: PlanOptions = {}): Plan
     }
 
     repos.push(
-      computeRepoPlan(repo.id, repo.name, repo.localDir, repoPath, options)
+      computeRepoPlan(repo.id, repo.name, repo.localDir, repoPath, planOptions)
     );
   }
 

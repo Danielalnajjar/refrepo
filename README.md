@@ -46,7 +46,8 @@ refrepo index                   # Actually index to mgrep store
 ```bash
 refrepo sync                    # Pull latest changes
 refrepo plan                    # See new files since last index
-refrepo suggest                 # (Optional) AI recommends ignore rules for new files
+refrepo suggest --apply         # (Optional) AI adds ignore rules for irrelevant files
+refrepo plan                    # Verify file counts after ignoring
 refrepo index                   # Re-index updated files
 ```
 
@@ -59,6 +60,8 @@ Changes since last index
     tanstack-router/packages/react-router/src/newFeature.ts
     ...
 ```
+
+If Claude suggests ignoring some files, `suggest --apply` adds them to your manifest and regenerates `.mgrepignore` automatically.
 
 ### Adding a New Repository
 
@@ -105,7 +108,7 @@ refrepo index                   # Index to mgrep
 | `refrepo status` | Check repository states |
 | `refrepo sync` | Clone/update all repositories |
 | `refrepo plan` | Preview indexing scope, show new files since last index |
-| `refrepo suggest` | Use Claude AI to recommend ignore rules for new files |
+| `refrepo suggest` | Use Claude AI to recommend ignore rules (use `--apply` to auto-add) |
 | `refrepo ignore build` | Generate .mgrepignore files |
 | `refrepo index` | Run mgrep indexing with safety checks |
 | `refrepo report` | Generate HTML status dashboard |
@@ -262,9 +265,10 @@ The `refrepo suggest` command calls Claude Code to analyze new files:
 ```bash
 refrepo plan              # Detect new files, save to .refrepo-changes.json
 refrepo suggest           # Claude analyzes and recommends ignore patterns
+refrepo suggest --apply   # Apply patterns to manifest and regenerate .mgrepignore
 ```
 
-Example output:
+**Preview mode** (`refrepo suggest`):
 ```
 Analyzing new files with Claude...
 Found 3 new files
@@ -277,6 +281,31 @@ Suggestions:
 
 ## KEEP (1 file)
 - `packages/react-router/newFeature.ts` - React, relevant to stack
+
+Run `refrepo suggest --apply` to apply these patterns
+```
+
+**Apply mode** (`refrepo suggest --apply`):
+```
+Analyzing new files with Claude...
+Found 3 new files
+
+Patterns to ignore:
+  tanstack-router/packages/vue-router/
+  tanstack-query/examples/angular/
+
+✓ Added 2 pattern(s) to manifest
+✓ Regenerated .mgrepignore
+
+Run `refrepo plan` to see updated file counts
+```
+
+The patterns are saved to `customIgnores` in your manifest file:
+```yaml
+# refrepo.manifest.yaml
+customIgnores:
+  - tanstack-router/packages/vue-router/
+  - tanstack-query/examples/angular/
 ```
 
 **Note**: Requires [Claude Code](https://claude.ai/code) to be installed and authenticated.

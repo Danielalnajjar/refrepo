@@ -53,6 +53,7 @@ export const ManifestSchema = z.object({
   defaultRoot: z.string().default(DEFAULT_ROOT),
   defaultStore: z.string().default(DEFAULT_STORE),
   repos: z.array(RepoConfigSchema),
+  customIgnores: z.array(z.string()).optional(),
 });
 
 // Type exports derived from schemas

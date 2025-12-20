@@ -45,6 +45,8 @@ export interface Manifest {
   defaultRoot: string;
   defaultStore: string;
   repos: RepoConfig[];
+  /** User-added ignore patterns (from refrepo suggest --apply) */
+  customIgnores?: string[];
 }
 
 export interface RepoStatusInfo {

@@ -7,6 +7,9 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { addCustomIgnores } from '../../core/manifest.js';
+import { writeIgnoreFiles } from '../../core/ignore.js';
+import { safeLoadManifest } from '../../core/manifest.js';
 import { createLogger, printJson } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
 
@@ -14,6 +17,7 @@ const CHANGES_FILENAME = '.refrepo-changes.json';
 
 interface SuggestOptions {
   json?: boolean;
+  apply?: boolean;
 }
 
 interface ChangesFile {
@@ -23,6 +27,13 @@ interface ChangesFile {
   newFiles: string[];
   removedFiles: string[];
   hasChanges: boolean;
+}
+
+interface SuggestResult {
+  suggestions: string;
+  patterns?: string[];
+  applied?: boolean;
+  patternsAdded?: number;
 }
 
 const TECH_STACK_CONTEXT = `
@@ -48,11 +59,13 @@ export function createSuggestCommand(): Command {
   return new Command('suggest')
     .description('Use Claude to analyze new files and suggest ignore rules')
     .option('--json', 'Output as JSON')
+    .option('--apply', 'Apply suggested patterns to manifest and regenerate .mgrepignore')
     .action(async (options: SuggestOptions) => {
       const jsonMode = options.json === true;
+      const applyMode = options.apply === true;
       const logger = createLogger({ jsonMode });
 
-      const result = await runSuggest(logger);
+      const result = await runSuggest(logger, applyMode);
 
       if (jsonMode) {
         printJson(result);
@@ -67,8 +80,9 @@ export function createSuggestCommand(): Command {
 }
 
 async function runSuggest(
-  logger: ReturnType<typeof createLogger>
-): Promise<CommandResult<{ suggestions: string }>> {
+  logger: ReturnType<typeof createLogger>,
+  applyMode: boolean
+): Promise<CommandResult<SuggestResult>> {
   // Load changes file
   const changesPath = path.join(process.cwd(), CHANGES_FILENAME);
 
@@ -93,19 +107,78 @@ async function runSuggest(
   logger.log(chalk.dim(`Found ${changes.newFiles.length} new files`));
   logger.log('');
 
-  const prompt = buildPrompt(changes.newFiles);
+  const prompt = applyMode ? buildApplyPrompt(changes.newFiles) : buildPrompt(changes.newFiles);
 
   try {
     const response = await callClaude(prompt);
 
-    logger.log(chalk.bold('Suggestions:'));
-    logger.log('');
-    logger.log(response);
+    if (applyMode) {
+      // Parse patterns from Claude's response
+      const patterns = parsePatterns(response);
 
-    return {
-      success: true,
-      data: { suggestions: response },
-    };
+      if (patterns.length === 0) {
+        logger.log(chalk.green('✓ Claude found no files to ignore'));
+        logger.log('');
+        logger.log(response);
+        return {
+          success: true,
+          data: { suggestions: response, patterns: [], applied: true, patternsAdded: 0 },
+        };
+      }
+
+      logger.log(chalk.bold('Patterns to ignore:'));
+      for (const pattern of patterns) {
+        logger.log(chalk.yellow(`  ${pattern}`));
+      }
+      logger.log('');
+
+      // Add patterns to manifest
+      const addResult = addCustomIgnores(patterns);
+      if (!addResult.success) {
+        return {
+          success: false,
+          error: `Failed to add patterns to manifest: ${addResult.error}`,
+        };
+      }
+
+      if (addResult.added.length === 0) {
+        logger.log(chalk.dim('All patterns already exist in manifest'));
+      } else {
+        logger.log(chalk.green(`✓ Added ${addResult.added.length} pattern(s) to manifest`));
+      }
+
+      // Regenerate .mgrepignore
+      const manifestResult = safeLoadManifest();
+      if (manifestResult.success && manifestResult.data) {
+        writeIgnoreFiles(manifestResult.data, { global: true });
+        logger.log(chalk.green('✓ Regenerated .mgrepignore'));
+      }
+
+      logger.log('');
+      logger.log(chalk.dim('Run `refrepo plan` to see updated file counts'));
+
+      return {
+        success: true,
+        data: {
+          suggestions: response,
+          patterns,
+          applied: true,
+          patternsAdded: addResult.added.length,
+        },
+      };
+    } else {
+      // Just show suggestions
+      logger.log(chalk.bold('Suggestions:'));
+      logger.log('');
+      logger.log(response);
+      logger.log('');
+      logger.log(chalk.dim('Run `refrepo suggest --apply` to apply these patterns'));
+
+      return {
+        success: true,
+        data: { suggestions: response },
+      };
+    }
   } catch (error) {
     return {
       success: false,
@@ -131,6 +204,55 @@ For files to ignore, provide the exact path patterns I should add to my ignore r
 
 Be concise. Focus only on files that are clearly irrelevant to our stack.
 If all files look relevant, just say "All files look relevant to your stack."`;
+}
+
+function buildApplyPrompt(newFiles: string[]): string {
+  const fileList = newFiles.map((f) => `  - ${f}`).join('\n');
+
+  return `${TECH_STACK_CONTEXT}
+
+The following NEW files have been added to our reference repos:
+
+${fileList}
+
+Analyze these files and return ONLY the ignore patterns for files that should NOT be indexed.
+
+IMPORTANT: Return patterns in this exact format - one pattern per line, starting with "IGNORE:":
+IGNORE: path/to/ignore/
+IGNORE: another/path/
+
+Rules for patterns:
+- Use the exact file path for specific files
+- Use trailing / for directories
+- Use * for wildcards when a whole directory should be ignored
+
+If ALL files are relevant and should be kept, respond with exactly:
+NONE
+
+Be conservative - only ignore files that are clearly not relevant to our React/TanStack/Convex stack.`;
+}
+
+function parsePatterns(response: string): string[] {
+  const patterns: string[] = [];
+
+  // Check if Claude said none
+  if (response.trim().toUpperCase() === 'NONE') {
+    return [];
+  }
+
+  // Parse IGNORE: lines
+  const lines = response.split('\n');
+  for (const line of lines) {
+    const match = line.match(/^IGNORE:\s*(.+)$/i);
+    if (match) {
+      const pattern = match[1].trim();
+      if (pattern) {
+        patterns.push(pattern);
+      }
+    }
+  }
+
+  return patterns;
 }
 
 function callClaude(prompt: string): Promise<string> {

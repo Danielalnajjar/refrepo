@@ -286,3 +286,44 @@ export function getReposByCategory(manifest: Manifest): Record<string, RepoConfi
 
   return grouped;
 }
+
+/**
+ * Add custom ignore patterns to manifest
+ */
+export function addCustomIgnores(patterns: string[], manifestPath?: string): {
+  success: boolean;
+  added: string[];
+  error?: string;
+} {
+  try {
+    const manifest = loadManifest(manifestPath);
+
+    // Initialize customIgnores if not present
+    if (!manifest.customIgnores) {
+      manifest.customIgnores = [];
+    }
+
+    // Add only new patterns (avoid duplicates)
+    const existingSet = new Set(manifest.customIgnores);
+    const added: string[] = [];
+
+    for (const pattern of patterns) {
+      if (!existingSet.has(pattern)) {
+        manifest.customIgnores.push(pattern);
+        added.push(pattern);
+      }
+    }
+
+    if (added.length > 0) {
+      saveManifest(manifest, manifestPath);
+    }
+
+    return { success: true, added };
+  } catch (err) {
+    return {
+      success: false,
+      added: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}

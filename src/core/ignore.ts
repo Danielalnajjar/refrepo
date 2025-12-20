@@ -135,6 +135,18 @@ export function buildGlobalIgnore(manifest: Manifest): { content: string; ruleCo
     }
   }
 
+  // Add custom ignores from manifest (user-added via suggest --apply)
+  if (manifest.customIgnores && manifest.customIgnores.length > 0) {
+    lines.push('# ------------------------------------------');
+    lines.push('# CUSTOM IGNORES (from refrepo suggest --apply)');
+    lines.push('# ------------------------------------------');
+
+    for (const pattern of manifest.customIgnores) {
+      lines.push(pattern);
+    }
+    lines.push('');
+  }
+
   // Add footer
   lines.push('# ------------------------------------------');
   lines.push('# Non-essential files');
