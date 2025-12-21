@@ -50,10 +50,13 @@ function getCommandVersion(command: string, versionFlag = '--version'): { found:
     const version = output.split('\n')[0];
 
     let cmdPath: string | undefined;
-    try {
-      cmdPath = execSync(`which ${command}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-    } catch {
-      // Ignore - path lookup is optional
+    // Skip path lookup on Windows (no 'which' command)
+    if (process.platform !== 'win32') {
+      try {
+        cmdPath = execSync(`which ${command}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      } catch {
+        // Ignore - path lookup is optional
+      }
     }
 
     return { found: true, version, path: cmdPath };

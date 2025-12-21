@@ -64,7 +64,17 @@ export type ManifestInput = z.input<typeof ManifestSchema>;
  * Validate manifest data against schema
  */
 export function validateManifest(data: unknown): z.infer<typeof ManifestSchema> {
-  return ManifestSchema.parse(data);
+  const manifest = ManifestSchema.parse(data);
+
+  // Check for duplicate repo IDs
+  const ids = manifest.repos.map((r) => r.id);
+  const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (duplicates.length > 0) {
+    const uniqueDuplicates = [...new Set(duplicates)];
+    throw new Error(`Duplicate repo IDs in manifest: ${uniqueDuplicates.join(', ')}`);
+  }
+
+  return manifest;
 }
 
 /**
@@ -73,11 +83,23 @@ export function validateManifest(data: unknown): z.infer<typeof ManifestSchema> 
 export function safeValidateManifest(data: unknown): {
   success: boolean;
   data?: z.infer<typeof ManifestSchema>;
-  error?: z.ZodError;
+  error?: z.ZodError | Error;
 } {
   const result = ManifestSchema.safeParse(data);
-  if (result.success) {
-    return { success: true, data: result.data };
+  if (!result.success) {
+    return { success: false, error: result.error };
   }
-  return { success: false, error: result.error };
+
+  // Check for duplicate repo IDs
+  const ids = result.data.repos.map((r) => r.id);
+  const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (duplicates.length > 0) {
+    const uniqueDuplicates = [...new Set(duplicates)];
+    return {
+      success: false,
+      error: new Error(`Duplicate repo IDs in manifest: ${uniqueDuplicates.join(', ')}`),
+    };
+  }
+
+  return { success: true, data: result.data };
 }

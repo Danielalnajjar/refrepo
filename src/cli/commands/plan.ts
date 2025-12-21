@@ -9,10 +9,9 @@ import chalk from 'chalk';
 import { safeLoadManifest, resolveManifestPath } from '../../core/manifest.js';
 import { computePlan, formatBytes, type PlanSummary, type RepoPlanResult } from '../../core/plan.js';
 import { loadBaseline, compareToBaseline } from '../../core/baseline.js';
+import { CHANGES_FILENAME } from '../../core/constants.js';
 import { createLogger, printJson } from '../output.js';
 import type { CommandResult, WarningLevel } from '../../core/types.js';
-
-const CHANGES_FILENAME = '.refrepo-changes.json';
 
 interface PlanOptions {
   json?: boolean;

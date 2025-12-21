@@ -11,6 +11,7 @@ export const DEFAULT_MANIFEST_NAME = 'refrepo.manifest.yaml';
 export const DEFAULT_STORE = 'wok-ops-platform';
 export const DEFAULT_REPORTS_DIR = 'reports';
 export const DEFAULT_REPORT_NAME = 'refrepo-report.html';
+export const CHANGES_FILENAME = '.refrepo-changes.json';
 
 // Git defaults
 export const DEFAULT_BRANCH = 'main';

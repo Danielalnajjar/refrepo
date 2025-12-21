@@ -4,16 +4,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { addCustomIgnores, resolveManifestPath } from '../../core/manifest.js';
 import { writeIgnoreFiles } from '../../core/ignore.js';
 import { safeLoadManifest } from '../../core/manifest.js';
+import { CHANGES_FILENAME } from '../../core/constants.js';
 import { createLogger, printJson } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
-
-const CHANGES_FILENAME = '.refrepo-changes.json';
 
 interface SuggestOptions {
   json?: boolean;
@@ -104,6 +103,14 @@ async function runSuggest(
     };
   }
 
+  // Check if Claude CLI is available
+  if (!isClaudeAvailable()) {
+    return {
+      success: false,
+      error: 'Claude Code CLI not found. Install it from https://github.com/anthropics/claude-code',
+    };
+  }
+
   logger.log(chalk.bold('Analyzing new files with Claude...'));
   logger.log(chalk.dim(`Found ${changes.newFiles.length} new files`));
   logger.log('');
@@ -188,8 +195,27 @@ async function runSuggest(
   }
 }
 
+const MAX_FILES_IN_PROMPT = 200;
+
+/**
+ * Build file list for prompt, truncating if too large
+ */
+function buildFileList(newFiles: string[]): string {
+  if (newFiles.length <= MAX_FILES_IN_PROMPT) {
+    return newFiles.map((f) => `  - ${f}`).join('\n');
+  }
+
+  // Truncate and add summary
+  const sample = newFiles.slice(0, MAX_FILES_IN_PROMPT);
+  const remaining = newFiles.length - MAX_FILES_IN_PROMPT;
+  return (
+    sample.map((f) => `  - ${f}`).join('\n') +
+    `\n  ... and ${remaining} more files (showing first ${MAX_FILES_IN_PROMPT})`
+  );
+}
+
 function buildPrompt(newFiles: string[]): string {
-  const fileList = newFiles.map((f) => `  - ${f}`).join('\n');
+  const fileList = buildFileList(newFiles);
 
   return `${TECH_STACK_CONTEXT}
 
@@ -208,7 +234,7 @@ If all files look relevant, just say "All files look relevant to your stack."`;
 }
 
 function buildApplyPrompt(newFiles: string[]): string {
-  const fileList = newFiles.map((f) => `  - ${f}`).join('\n');
+  const fileList = buildFileList(newFiles);
 
   return `${TECH_STACK_CONTEXT}
 
@@ -257,6 +283,18 @@ function parsePatterns(response: string): string[] {
   }
 
   return patterns;
+}
+
+/**
+ * Check if Claude CLI is available
+ */
+function isClaudeAvailable(): boolean {
+  try {
+    execSync('claude --version', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function callClaude(prompt: string): Promise<string> {
