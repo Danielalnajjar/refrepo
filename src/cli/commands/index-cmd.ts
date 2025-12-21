@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { computePlan, formatBytes } from '../../core/plan.js';
 import { saveBaseline } from '../../core/baseline.js';
+import { writeIgnoreFiles } from '../../core/ignore.js';
 import { createLogger, printJson, type Logger } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
 
@@ -116,7 +117,11 @@ async function runIndex(
     logger.log('');
   }
 
-  // Step 2: Run mgrep watch
+  // Step 2: Regenerate .mgrepignore to ensure it's up-to-date
+  logger.dim('Regenerating .mgrepignore...');
+  writeIgnoreFiles(manifest, { global: true });
+
+  // Step 3: Run mgrep watch
   const startTime = Date.now();
   const timeoutMs = (options.timeoutSeconds || 300) * 1000;
 

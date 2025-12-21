@@ -86,6 +86,11 @@ export const GLOBAL_IGNORE_PATTERNS = [
   // ===========================================
   'CONTRIBUTING.md',
   'FUNDING.json',
+  'LICENSE',
+  'LICENSE.md',
+  'CODE_OF_CONDUCT.md',
+  'SECURITY.md',
+  'CHANGELOG.md',
 
   // ===========================================
   // Test Files & Fixtures
@@ -97,6 +102,11 @@ export const GLOBAL_IGNORE_PATTERNS = [
   '*.spec.ts',
   '*.spec.tsx',
   '*.test.*.ts',
+  '*.test-d.ts',
+  '*.test-d.tsx',
+  'tests/',
+  '__tests__/',
+  'test/',
   'tests/fixtures/',
   '__fixtures__/',
   'test-results/',
@@ -104,7 +114,10 @@ export const GLOBAL_IGNORE_PATTERNS = [
   '__snapshots__/',
   '*.snap',
   '*.notest.*',
-  '*.test-d.ts',
+  'test-setup.ts',
+  'setupTests.tsx',
+  'test-utils.ts',
+  'vitest.workspace.ts',
 
   // ===========================================
   // Config Files (tooling, not patterns)
@@ -116,11 +129,24 @@ export const GLOBAL_IGNORE_PATTERNS = [
   'tsdown.config.ts',
   'tsup.config.ts',
   '.prettierrc*',
+  'prettier.config.*',
   '.eslintrc*',
   'eslint.config.*',
   'vitest.config.*',
   'jest.config.*',
   'playwright.config.*',
+  'babel.config.cjs',
+  'babel.config.js',
+  'rollup.config.mjs',
+  'rollup.config.js',
+  'nx.json',
+  'renovate.json',
+  'netlify.toml',
+  'docker-compose.yml',
+  'Dockerfile',
+  'pnpm-workspace.yaml',
+  'Justfile',
+  'scripts/',
 
   // ===========================================
   // Binary/archive files

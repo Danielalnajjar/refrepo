@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveManifestPath } from './manifest.js';
 
 const BASELINE_FILENAME = '.refrepo-baseline.json';
 
@@ -15,10 +16,12 @@ export interface Baseline {
 }
 
 /**
- * Get baseline file path (stored in manifest directory)
+ * Get baseline file path (stored alongside manifest)
  */
 function getBaselinePath(): string {
-  return path.join(process.cwd(), BASELINE_FILENAME);
+  const manifestPath = resolveManifestPath();
+  const manifestDir = path.dirname(manifestPath);
+  return path.join(manifestDir, BASELINE_FILENAME);
 }
 
 /**

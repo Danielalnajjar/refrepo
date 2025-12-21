@@ -7,7 +7,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { addCustomIgnores } from '../../core/manifest.js';
+import { addCustomIgnores, resolveManifestPath } from '../../core/manifest.js';
 import { writeIgnoreFiles } from '../../core/ignore.js';
 import { safeLoadManifest } from '../../core/manifest.js';
 import { createLogger, printJson } from '../output.js';
@@ -83,8 +83,9 @@ async function runSuggest(
   logger: ReturnType<typeof createLogger>,
   applyMode: boolean
 ): Promise<CommandResult<SuggestResult>> {
-  // Load changes file
-  const changesPath = path.join(process.cwd(), CHANGES_FILENAME);
+  // Load changes file from manifest directory
+  const manifestDir = path.dirname(resolveManifestPath());
+  const changesPath = path.join(manifestDir, CHANGES_FILENAME);
 
   if (!fs.existsSync(changesPath)) {
     return {
@@ -217,13 +218,16 @@ ${fileList}
 
 Analyze these files and return ONLY the ignore patterns for files that should NOT be indexed.
 
-IMPORTANT: Return patterns in this exact format - one pattern per line, starting with "IGNORE:":
-IGNORE: path/to/ignore/
-IGNORE: another/path/
+CRITICAL: Patterns MUST include the repository folder prefix (the first path component like "tanstack-router/", "better-auth-main/", etc.)
+
+Return patterns in this exact format - one pattern per line, starting with "IGNORE:":
+IGNORE: tanstack-router/examples/vue/
+IGNORE: better-auth-main/docs/content/docs/examples/nuxt.mdx
 
 Rules for patterns:
+- ALWAYS include the repository prefix (first folder in the path)
 - Use the exact file path for specific files
-- Use trailing / for directories
+- Use trailing / for directories to ignore all contents
 - Use * for wildcards when a whole directory should be ignored
 
 If ALL files are relevant and should be kept, respond with exactly:
@@ -257,8 +261,9 @@ function parsePatterns(response: string): string[] {
 
 function callClaude(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', ['-p', prompt], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // Use stdin for prompt to avoid E2BIG (argument list too long) errors
+    const child = spawn('claude', ['-p', '-'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let stdout = '';
@@ -283,5 +288,9 @@ function callClaude(prompt: string): Promise<string> {
     child.on('error', (error) => {
       reject(new Error(`Failed to run Claude: ${error.message}. Is Claude Code installed?`));
     });
+
+    // Write prompt to stdin and close
+    child.stdin.write(prompt);
+    child.stdin.end();
   });
 }

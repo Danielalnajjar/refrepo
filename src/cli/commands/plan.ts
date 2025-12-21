@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { safeLoadManifest } from '../../core/manifest.js';
+import { safeLoadManifest, resolveManifestPath } from '../../core/manifest.js';
 import { computePlan, formatBytes, type PlanSummary, type RepoPlanResult } from '../../core/plan.js';
 import { loadBaseline, compareToBaseline } from '../../core/baseline.js';
 import { createLogger, printJson } from '../output.js';
@@ -217,8 +217,25 @@ async function runPlan(
         removedFiles: diff.removedFiles,
         hasChanges: diff.newFiles.length > 0 || diff.removedFiles.length > 0,
       };
+      const manifestDir = path.dirname(resolveManifestPath());
       fs.writeFileSync(
-        path.join(process.cwd(), CHANGES_FILENAME),
+        path.join(manifestDir, CHANGES_FILENAME),
+        JSON.stringify(changesFile, null, 2),
+        'utf-8'
+      );
+    } else if (!baseline && summary.allFiles) {
+      // No baseline - treat all files as "new" for first-time suggest
+      const changesFile = {
+        timestamp: new Date().toISOString(),
+        baselineDate: 'none',
+        totalFiles: summary.totals.includedFileCount,
+        newFiles: summary.allFiles,
+        removedFiles: [],
+        hasChanges: summary.allFiles.length > 0,
+      };
+      const manifestDir = path.dirname(resolveManifestPath());
+      fs.writeFileSync(
+        path.join(manifestDir, CHANGES_FILENAME),
         JSON.stringify(changesFile, null, 2),
         'utf-8'
       );

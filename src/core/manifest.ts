@@ -181,11 +181,56 @@ export function getDefaultManifest(): Manifest {
 }
 
 /**
+ * Search upward from a directory for the manifest file
+ */
+function findManifestUpward(startDir: string): string | null {
+  let currentDir = path.resolve(startDir);
+  const root = path.parse(currentDir).root;
+
+  while (currentDir !== root) {
+    const candidate = path.join(currentDir, DEFAULT_MANIFEST_NAME);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  // Check root directory too
+  const rootCandidate = path.join(root, DEFAULT_MANIFEST_NAME);
+  if (fs.existsSync(rootCandidate)) {
+    return rootCandidate;
+  }
+
+  return null;
+}
+
+/**
  * Resolve the manifest file path
+ * Priority: override arg > REFREPO_MANIFEST env > search upward from cwd
  */
 export function resolveManifestPath(override?: string): string {
   if (override) return path.resolve(override);
-  return path.resolve(process.cwd(), DEFAULT_MANIFEST_NAME);
+
+  // Check environment variable
+  const envPath = process.env.REFREPO_MANIFEST;
+  if (envPath) {
+    return path.resolve(envPath);
+  }
+
+  // First check current directory
+  const cwdPath = path.resolve(process.cwd(), DEFAULT_MANIFEST_NAME);
+  if (fs.existsSync(cwdPath)) {
+    return cwdPath;
+  }
+
+  // Search upward through parent directories
+  const found = findManifestUpward(process.cwd());
+  if (found) {
+    return found;
+  }
+
+  // Return cwd path for error messaging (file doesn't exist)
+  return cwdPath;
 }
 
 /**

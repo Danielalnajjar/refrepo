@@ -44,8 +44,11 @@ function countRules(content: string): number {
 /**
  * Build ignore file for a single repo
  */
-export function buildRepoIgnore(repo: RepoConfig): { content: string; ruleCount: number } {
-  const content = buildIgnoreContent(repo.id);
+export function buildRepoIgnore(
+  repo: RepoConfig,
+  customIgnores?: string[]
+): { content: string; ruleCount: number } {
+  const content = buildIgnoreContent(repo.id, repo.localDir, customIgnores);
   const ruleCount = countRules(content);
   return { content, ruleCount };
 }
@@ -56,12 +59,13 @@ export function buildRepoIgnore(repo: RepoConfig): { content: string; ruleCount:
 export function writeRepoIgnore(
   repo: RepoConfig,
   root: string,
-  options: IgnoreBuildOptions = {}
+  options: IgnoreBuildOptions = {},
+  customIgnores?: string[]
 ): IgnoreBuildResult {
   const repoPath = getRepoPath(root, repo.localDir);
   const ignorePath = path.join(repoPath, '.mgrepignore');
 
-  const { content, ruleCount } = buildRepoIgnore(repo);
+  const { content, ruleCount } = buildRepoIgnore(repo, customIgnores);
 
   let written = false;
   if (!options.dryRun) {
@@ -202,7 +206,7 @@ export function writeIgnoreFiles(
   const enabledRepos = getEnabledRepos(manifest);
 
   for (const repo of enabledRepos) {
-    const result = writeRepoIgnore(repo, root, options);
+    const result = writeRepoIgnore(repo, root, options, manifest.customIgnores);
     results.push(result);
   }
 

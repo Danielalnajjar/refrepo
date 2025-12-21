@@ -222,6 +222,7 @@ refrepo index --dry-run --json | jq .data.filesUploaded
 |----------|-------------|
 | `MXBAI_API_KEY` | Mixedbread API key for mgrep (required for indexing) |
 | `MIXEDBREAD_API_KEY` | Legacy name (deprecated, still accepted) |
+| `REFREPO_MANIFEST` | Path to manifest file (overrides directory search) |
 | `REFREPO_ROOT` | Override default repository root |
 | `REFREPO_STORE` | Override default mgrep store name |
 
