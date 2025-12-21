@@ -195,27 +195,8 @@ async function runSuggest(
   }
 }
 
-const MAX_FILES_IN_PROMPT = 200;
-
-/**
- * Build file list for prompt, truncating if too large
- */
-function buildFileList(newFiles: string[]): string {
-  if (newFiles.length <= MAX_FILES_IN_PROMPT) {
-    return newFiles.map((f) => `  - ${f}`).join('\n');
-  }
-
-  // Truncate and add summary
-  const sample = newFiles.slice(0, MAX_FILES_IN_PROMPT);
-  const remaining = newFiles.length - MAX_FILES_IN_PROMPT;
-  return (
-    sample.map((f) => `  - ${f}`).join('\n') +
-    `\n  ... and ${remaining} more files (showing first ${MAX_FILES_IN_PROMPT})`
-  );
-}
-
 function buildPrompt(newFiles: string[]): string {
-  const fileList = buildFileList(newFiles);
+  const fileList = newFiles.map((f) => `  - ${f}`).join('\n');
 
   return `${TECH_STACK_CONTEXT}
 
@@ -234,7 +215,7 @@ If all files look relevant, just say "All files look relevant to your stack."`;
 }
 
 function buildApplyPrompt(newFiles: string[]): string {
-  const fileList = buildFileList(newFiles);
+  const fileList = newFiles.map((f) => `  - ${f}`).join('\n');
 
   return `${TECH_STACK_CONTEXT}
 
