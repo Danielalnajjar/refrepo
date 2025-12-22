@@ -111,6 +111,7 @@ refrepo index                   # Index to mgrep
 | `refrepo suggest` | Use Claude AI to recommend ignore rules (use `--apply` to auto-add) |
 | `refrepo ignore build` | Generate .mgrepignore files |
 | `refrepo index` | Run mgrep indexing with safety checks |
+| `refrepo search <query>` | Search indexed content via mgrep |
 | `refrepo report` | Generate HTML status dashboard |
 | `refrepo doctor` | Check system dependencies |
 

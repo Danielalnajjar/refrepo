@@ -4,16 +4,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { addCustomIgnores, resolveManifestPath } from '../../core/manifest.js';
 import { writeIgnoreFiles } from '../../core/ignore.js';
 import { safeLoadManifest } from '../../core/manifest.js';
+import { CHANGES_FILENAME } from '../../core/constants.js';
 import { createLogger, printJson } from '../output.js';
 import type { CommandResult } from '../../core/types.js';
-
-const CHANGES_FILENAME = '.refrepo-changes.json';
 
 interface SuggestOptions {
   json?: boolean;
@@ -101,6 +100,14 @@ async function runSuggest(
     return {
       success: true,
       data: { suggestions: 'No new files to analyze.' },
+    };
+  }
+
+  // Check if Claude CLI is available
+  if (!isClaudeAvailable()) {
+    return {
+      success: false,
+      error: 'Claude Code CLI not found. Install it from https://github.com/anthropics/claude-code',
     };
   }
 
@@ -257,6 +264,18 @@ function parsePatterns(response: string): string[] {
   }
 
   return patterns;
+}
+
+/**
+ * Check if Claude CLI is available
+ */
+function isClaudeAvailable(): boolean {
+  try {
+    execSync('claude --version', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function callClaude(prompt: string): Promise<string> {

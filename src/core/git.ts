@@ -45,12 +45,17 @@ export async function isGitAvailable(): Promise<{ available: boolean; version?: 
     const result = await execa('git', ['--version']);
     const version = result.stdout.replace('git version ', '').trim();
 
-    const whichResult = await execa('which', ['git']).catch(() => ({ stdout: '' }));
+    let gitPath: string | undefined;
+    // Skip path lookup on Windows (no 'which' command)
+    if (process.platform !== 'win32') {
+      const whichResult = await execa('which', ['git']).catch(() => ({ stdout: '' }));
+      gitPath = whichResult.stdout.trim() || undefined;
+    }
 
     return {
       available: true,
       version,
-      path: whichResult.stdout.trim() || undefined,
+      path: gitPath,
     };
   } catch {
     return { available: false };
